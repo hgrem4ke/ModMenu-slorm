@@ -6,7 +6,8 @@ installed mod; clicking a tile opens that mod's settings page, styled like the g
 
 ModMenu does nothing on its own: it is a shared menu for the mods that register with it.
 
-![hippo](https://jumpshare.com/s/g45QLO3nvuRfN3XOVPJb)
+![me](https://github.com/hgrem4ke/ModMenu-slorm/blob/main/Animation.gif)
+
 Known mods:
 
 - [AutoLoot](https://github.com/hgrem4ke/Autoloot-slorm): registers itself.
