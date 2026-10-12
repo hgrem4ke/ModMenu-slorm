@@ -20,6 +20,13 @@ namespace ModMenu
 
     struct IModMenu;
 
+    // Menu language, chosen by the player in the MODS menu.
+    enum Language : int
+    {
+        kLangEnglish = 0,   // default
+        kLangFrench = 1
+    };
+
     // Describes a mod. The strings are copied by RegisterMod.
     struct ModEntry
     {
@@ -51,5 +58,13 @@ namespace ModMenu
 
         // Label + selector  <  value  >. Returns -1 (left arrow), +1 (right arrow) or 0.
         virtual int Selector(int Column, int Row, const char* Label, const char* Value) = 0;
+
+        // --- Added in interface version 1.1: check QueryVersion before calling these ---
+
+        // Current menu language (a Language value), so a mod can translate its own page.
+        virtual int GetLanguage() = 0;
+
+        // Sets the help line for this frame, instead of ModEntry::Help. Call it from DrawPage.
+        virtual void HelpLine(const char* Text) = 0;
     };
 }

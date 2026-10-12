@@ -18,12 +18,21 @@ You need [Aurie Framework](https://github.com/AurieFramework/Aurie) and
 
 Copy `x64/Release/ModMenu.dll` into `The Slormancer\mods\Aurie\`.
 
-Optional setting, in a `ModMenu.ini` file next to the DLL:
+## Language
+
+The menu is in English by default. Click **EN / FR** at the top left of the MODS menu to switch to
+French; the choice is saved. Mods that support it (AutoLoot does) follow the same language.
+
+## Settings
+
+The `ModMenu.ini` file next to the DLL holds two optional settings:
 
     [ModMenu]
-    Debug=1
+    Language=en
+    Debug=0
 
-`Debug=1` prints detailed messages and enables a gallery of the game's UI sprites (End key).
+`Language` is `en` or `fr`. `Debug=1` prints detailed messages and enables a gallery of the game's
+UI sprites (End key).
 
 ## Adding your mod to the menu
 
@@ -62,6 +71,10 @@ static void RegisterInModMenu()
 
 Widgets available in a page: `Toggle` (checkbox) and `Selector` (value with left and right
 arrows). The menu shows up to 6 mods.
+
+To translate your page, call `Menu->GetLanguage()` in `DrawPage` (it returns `kLangEnglish` or
+`kLangFrench`), and `Menu->HelpLine(text)` to set the help line at the bottom. Both were added in
+interface version 1.1, so check `QueryVersion` first if your mod may run with an older ModMenu.
 
 ModMenu creates its interface in `ModulePreinitialize`, so Aurie loads it before the mods that
 register in their `ModuleInitialize`.

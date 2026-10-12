@@ -8,9 +8,10 @@
 // The interface is created in ModulePreinitialize, so Aurie loads this module before the mods
 // that register with it in their ModuleInitialize.
 //
-// Optional setting, in ModMenu.ini next to the DLL:
+// Settings, in ModMenu.ini next to the DLL (both optional):
 //   [ModMenu]
-//   Debug=1     menu logs + gallery of the game's UI sprites (End key)
+//   Language=en   menu language: en (default) or fr, also switched from the MODS menu
+//   Debug=1       menu logs + gallery of the game's UI sprites (End key)
 // ============================================================
 
 #include <YYToolkit/YYTK_Shared.hpp>
@@ -46,6 +47,25 @@ static constexpr double kPageRowY[] = { 138.0, 228.0, 318.0 };
 
 static YYTKInterface* g_Yytk = nullptr;
 static bool g_Debug = false;
+
+// Menu language (ModMenu::LANG_*), saved in ModMenu.ini and switched from the MODS menu.
+static int g_Language = ModMenu::kLangEnglish;
+static char g_IniPath[MAX_PATH] = {};
+
+// French accented letters as explicit UTF-8, so the texts do not depend on the source file
+// encoding. Always concatenated ("Port" FR_E_ACUTE "e") so a following letter is never read
+// as part of the escape.
+#define FR_E_ACUTE    "\xC3\xA9"
+#define FR_E_ACUTE_UP "\xC3\x89"
+#define FR_E_CIRC     "\xC3\xAA"
+#define FR_I_CIRC     "\xC3\xAE"
+#define FR_A_GRAVE    "\xC3\xA0"
+
+// Picks the text for the current language.
+static const char* Tr(const char* English, const char* French)
+{
+    return (g_Language == ModMenu::kLangFrench) ? French : English;
+}
 
 static PFUNC_YYGMLScript g_OriginalSettings = nullptr;   // scr_ui_menus_settings
 static PFUNC_YYGMLScript g_OriginalManager = nullptr;   // scr_ui_menus_manager
@@ -435,6 +455,7 @@ struct WindowContext
     double nw = 850.0;        // native frame size (850 x 419)
     double nh = 419.0;
     bool   inModPage = false; // a mod is currently drawing its page
+    std::string help;         // help line set by the mod for this frame (empty = its default one)
 };
 
 static WindowContext g_Win;
@@ -510,7 +531,7 @@ struct ModMenuInterface final : ModMenu::IModMenu
     void QueryVersion(OUT short& Major, OUT short& Minor, OUT short& Patch) override
     {
         Major = 1;
-        Minor = 0;
+        Minor = 1;
         Patch = 0;
     }
 
@@ -587,6 +608,17 @@ struct ModMenuInterface final : ModMenu::IModMenu
 
         return step;
     }
+
+    int GetLanguage() override
+    {
+        return g_Language;
+    }
+
+    void HelpLine(const char* Text) override
+    {
+        if (g_Win.inModPage && Text)
+            g_Win.help = Text;
+    }
 };
 
 static ModMenuInterface g_Interface;
@@ -600,7 +632,7 @@ static ModMenuInterface g_Interface;
 // ============================================================
 
 static char g_ModsFolder[MAX_PATH] = {};      // folder of our DLL (mods/Aurie), with the trailing separator
-static char g_ReforgerKeyText[48] = "Hotkey: F6";
+static int g_ReforgerKey = VK_F6;             // SlormReforger's hotkey (F6 by default)
 
 // One line of text in a mod's page, in native window coordinates.
 static void PageText(double Nx, double Ny, const char* Text, int R, int G, int B)
@@ -613,7 +645,7 @@ static void PageText(double Nx, double Ny, const char* Text, int R, int G, int B
 
 static void ReforgerReadKey()
 {
-    int key = VK_F6;                          // SlormReforger's default hotkey
+    int key = VK_F6;
 
     FILE* f = nullptr;
     const std::string path = std::string(g_ModsFolder) + "SlormReforger.txt";
@@ -629,29 +661,43 @@ static void ReforgerReadKey()
         std::fclose(f);
     }
 
-    if (key >= VK_F1 && key <= VK_F24)
-        std::snprintf(g_ReforgerKeyText, sizeof(g_ReforgerKeyText), "Hotkey: F%d", key - VK_F1 + 1);
-    else
-        std::snprintf(g_ReforgerKeyText, sizeof(g_ReforgerKeyText), "Hotkey: key code %d", key);
+    g_ReforgerKey = key;
 }
 
-static void ReforgerDrawPage(ModMenu::IModMenu*, void*)
+static void ReforgerDrawPage(ModMenu::IModMenu* Menu, void*)
 {
     const double left = kPageColumnX[0] - 28.0;
     const double right = kPageColumnX[1] - 28.0;
 
     // --- Left column: how to use it ---
-    PageText(left, 138.0, "Automatic reforging at Friedrich's", 255, 226, 140);
-    PageText(left, 198.0, "1. Talk to Friedrich, the blacksmith", 255, 255, 255);
-    PageText(left, 243.0, "2. Open Reforge Equipment", 255, 255, 255);
-    PageText(left, 288.0, "3. Put an item in the slot", 255, 255, 255);
-    PageText(left, 333.0, "The SlormReforger window appears", 200, 200, 200);
+    PageText(left, 138.0, Tr("Automatic reforging at Friedrich's",
+        "Reforge automatique chez Friedrich"), 255, 226, 140);
+    PageText(left, 198.0, Tr("1. Talk to Friedrich, the blacksmith",
+        "1. Parle " FR_A_GRAVE " Friedrich, le forgeron"), 255, 255, 255);
+    PageText(left, 243.0, Tr("2. Open Reforge Equipment",
+        "2. Ouvre la reforge d'" FR_E_ACUTE "quipement"), 255, 255, 255);
+    PageText(left, 288.0, Tr("3. Put an item in the slot",
+        "3. Place un objet dans l'emplacement"), 255, 255, 255);
+    PageText(left, 333.0, Tr("The SlormReforger window appears",
+        "La fen" FR_E_CIRC "tre SlormReforger appara" FR_I_CIRC "t"), 200, 200, 200);
 
     // --- Right column: hotkey and settings ---
-    PageText(right, 138.0, g_ReforgerKeyText, 255, 226, 140);
-    PageText(right, 183.0, "Shows or hides its window", 200, 200, 200);
-    PageText(right, 258.0, "Settings", 255, 226, 140);
-    PageText(right, 303.0, "Options tab of its window", 200, 200, 200);
+    char keyText[48];
+    if (g_ReforgerKey >= VK_F1 && g_ReforgerKey <= VK_F24)
+        std::snprintf(keyText, sizeof(keyText), Tr("Hotkey: F%d", "Touche : F%d"), g_ReforgerKey - VK_F1 + 1);
+    else
+        std::snprintf(keyText, sizeof(keyText), Tr("Hotkey: key code %d", "Touche : code %d"), g_ReforgerKey);
+
+    PageText(right, 138.0, keyText, 255, 226, 140);
+    PageText(right, 183.0, Tr("Shows or hides its window",
+        "Affiche ou cache sa fen" FR_E_CIRC "tre"), 200, 200, 200);
+    PageText(right, 258.0, Tr("Settings", "R" FR_E_ACUTE "glages"), 255, 226, 140);
+    PageText(right, 303.0, Tr("Options tab of its window",
+        "Onglet Options de sa fen" FR_E_CIRC "tre"), 200, 200, 200);
+
+    Menu->HelpLine(Tr(
+        "Mod by wistb  -  its settings live in its own window  -  Esc: back",
+        "Mod de wistb  -  ses r" FR_E_ACUTE "glages se font dans sa propre fen" FR_E_CIRC "tre  -  " FR_E_ACUTE_UP "chap : retour"));
 }
 
 // Adds the external mods loaded in the game to the menu. Called every time the menu opens:
@@ -671,7 +717,6 @@ static void DetectExternalMods()
     ModMenu::ModEntry entry = {};
     entry.Name = "SLORMREFORGER";
     entry.Title = "MOD  -  SLORMREFORGER";
-    entry.Help = "Mod by wistb  -  its settings live in its own window  -  Esc: back";
     entry.DrawPage = ReforgerDrawPage;
 
     reforgerAdded = g_Interface.RegisterMod(entry);
@@ -681,6 +726,42 @@ static void DetectExternalMods()
 // Pages: MODS menu and a mod's settings
 // ============================================================
 
+// Language switch "EN / FR" on the left of the title band: the current language is highlighted.
+// A click switches to the other language and saves it in ModMenu.ini.
+static void DrawLanguageSwitch()
+{
+    const double scale = g_Win.ts * 0.8;
+    const double x = WinX(34.0);
+    const double cy = WinY(43.0);
+
+    const double wEn = TextWidth("EN") * scale;
+    const double wSep = TextWidth("  /  ") * scale;
+    const double wFr = TextWidth("FR") * scale;
+    const double halfH = ReadNumber(g_Yytk->CallBuiltin("string_height", { "EN" })) * scale * 0.5;
+    const double pad = 8.0 * g_Win.ws;
+
+    const bool hover = Inside(g_Win.mouse, x - pad, cy - halfH - pad, x + wEn + wSep + wFr + pad, cy + halfH + pad);
+    if (hover)
+        g_HoverThisCall = true;
+
+    const bool french = (g_Language == ModMenu::kLangFrench);
+
+    GmAlign(0, 1);
+    if (!french) GmColor(255, 226, 140); else GmColor(130, 124, 112);
+    GmText(x, cy, "EN", scale);
+    GmColor(130, 124, 112);
+    GmText(x + wEn, cy, "  /  ", scale);
+    if (french) GmColor(255, 226, 140); else GmColor(130, 124, 112);
+    GmText(x + wEn + wSep, cy, "FR", scale);
+    GmAlign(0, 0);
+
+    if (hover && g_Win.mouse.pressed)
+    {
+        g_Language = french ? ModMenu::kLangEnglish : ModMenu::kLangFrench;
+        WritePrivateProfileStringA("ModMenu", "Language", french ? "en" : "fr", g_IniPath);
+    }
+}
+
 // Page 0: mods menu (one tile per mod). Returns true if the player asks to close the menu.
 static bool DrawModsMenu(double W, double H, const MouseState& M)
 {
@@ -688,6 +769,7 @@ static bool DrawModsMenu(double W, double H, const MouseState& M)
     g_Win.ts = (H / 1440.0) * 1.05;          // same text size as the settings pages
 
     DrawWindowTitle("MODS");
+    DrawLanguageSwitch();
 
     const int count = static_cast<int>(g_Mods.size());
 
@@ -695,7 +777,7 @@ static bool DrawModsMenu(double W, double H, const MouseState& M)
     {
         GmColor(200, 200, 200);
         GmAlign(1, 1);
-        GmText(WinX(g_Win.nw * 0.5), WinY(215.0), "No mod installed", g_Win.ts);
+        GmText(WinX(g_Win.nw * 0.5), WinY(215.0), Tr("No mod installed", "Aucun mod install" FR_E_ACUTE), g_Win.ts);
         GmAlign(0, 0);
     }
 
@@ -716,7 +798,7 @@ static bool DrawModsMenu(double W, double H, const MouseState& M)
         if (mod.IsActive)
         {
             const bool active = mod.IsActive(mod.user);
-            status = active ? "ACTIVE" : "INACTIVE";
+            status = active ? Tr("ACTIVE", "ACTIF") : Tr("INACTIVE", "INACTIF");
             sr = active ? 130 : 214;
             sg = active ? 205 : 96;
             sb = active ? 120 : 72;
@@ -730,7 +812,9 @@ static bool DrawModsMenu(double W, double H, const MouseState& M)
         }
     }
 
-    DrawWindowHelp("Click a mod to open its settings  -  Esc: back");
+    DrawWindowHelp(Tr(
+        "Click a mod to open its settings  -  Esc: back",
+        "Clique sur un mod pour ouvrir ses r" FR_E_ACUTE "glages  -  " FR_E_ACUTE_UP "chap : retour"));
 
     return DrawWindowCloseButton();
 }
@@ -748,12 +832,15 @@ static bool DrawModPage(double W, double H, const MouseState& M, const Registere
     DrawSpriteTL(GetSprite("spr_settings_separator"), 0, WinX(403.0), WinY(98.0),
         g_Win.ws, g_Win.ws * (265.0 / 531.0));
 
+    g_Win.help.clear();
     g_Win.inModPage = true;
     Mod.DrawPage(&g_Interface, Mod.user);
     g_Win.inModPage = false;
 
-    if (!Mod.help.empty())
-        DrawWindowHelp(Mod.help.c_str());
+    // The mod's HelpLine call for this frame wins over the help text it registered with.
+    const std::string& help = g_Win.help.empty() ? Mod.help : g_Win.help;
+    if (!help.empty())
+        DrawWindowHelp(help.c_str());
 
     return DrawWindowCloseButton();
 }
@@ -1255,7 +1342,13 @@ EXPORTED AurieStatus ModuleInitialize(
     strncpy_s(g_ModsFolder, folder.c_str(), _TRUNCATE);
     iniPath = folder + "ModMenu.ini";
 
-    g_Debug = GetPrivateProfileIntA("ModMenu", "Debug", 0, iniPath.c_str()) != 0;
+    strncpy_s(g_IniPath, iniPath.c_str(), _TRUNCATE);
+
+    g_Debug = GetPrivateProfileIntA("ModMenu", "Debug", 0, g_IniPath) != 0;
+
+    char language[8] = {};
+    GetPrivateProfileStringA("ModMenu", "Language", "en", language, sizeof(language), g_IniPath);
+    g_Language = (_stricmp(language, "fr") == 0) ? ModMenu::kLangFrench : ModMenu::kLangEnglish;
 
     // --- Installs a hook on a GameMaker script ---
     auto installScriptHook = [&](const char* scriptName, const char* hookName,
