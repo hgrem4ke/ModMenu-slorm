@@ -8,6 +8,8 @@ ModMenu does nothing on its own: it is a shared menu for the mods that register 
 
 ![me](https://github.com/hgrem4ke/ModMenu-slorm/blob/main/Animation.gif)
 
+i upload soon english version below
+
 Known mods:
 
 - [AutoLoot](https://github.com/hgrem4ke/Autoloot-slorm): registers itself.
