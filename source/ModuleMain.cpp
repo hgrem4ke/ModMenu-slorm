@@ -1,16 +1,16 @@
 // ============================================================
-// ModMenu pour The Slormancer (Aurie + YYToolkit)
+// ModMenu for The Slormancer (Aurie + YYToolkit)
 //
-// Ajoute un bouton "M" dans le menu Options du jeu. Il ouvre un menu MODS avec un encadre par
-// mod enregistre ; un clic sur un encadre ouvre la page de reglages de ce mod.
+// Adds an "M" button to the game's Options menu. It opens a MODS menu with one tile per
+// registered mod; clicking a tile opens that mod's settings page.
 //
-// Les mods s'enregistrent via l'interface Aurie "SlormModMenu" (voir api/ModMenu/ModMenuAPI.hpp).
-// L'interface est creee des ModulePreinitialize : Aurie charge donc ce module avant les mods
-// qui s'y enregistrent dans leur ModuleInitialize.
+// Mods register through the "SlormModMenu" Aurie interface (see api/ModMenu/ModMenuAPI.hpp).
+// The interface is created in ModulePreinitialize, so Aurie loads this module before the mods
+// that register with it in their ModuleInitialize.
 //
-// Reglage facultatif, dans ModMenu.ini a cote de la DLL :
+// Optional setting, in ModMenu.ini next to the DLL:
 //   [ModMenu]
-//   Debug=1     logs du menu + galerie des sprites d'interface (touche Fin)
+//   Debug=1     menu logs + gallery of the game's UI sprites (End key)
 // ============================================================
 
 #include <YYToolkit/YYTK_Shared.hpp>
@@ -25,23 +25,23 @@ using namespace Aurie;
 using namespace YYTK;
 
 // ============================================================
-// Constantes
+// Constants
 // ============================================================
 
-static constexpr int KEY_GALLERY = VK_END;    // Debug : galerie des sprites d'interface du jeu (pages successives)
+static constexpr int KEY_GALLERY = VK_END;    // Debug: gallery of the game's UI sprites (page by page)
 
-// Taille du texte du bouton M (multiplie par la hauteur de l'ecran / 900).
+// Text size of the M button (multiplied by screen height / 900).
 static constexpr double UI_TEXT_SCALE = 1.0;
 
-// Nombre maximum de mods affiches dans le menu MODS.
+// Maximum number of mods shown in the MODS menu.
 static constexpr size_t kMaxMods = 6;
 
-// Grille de la page de reglages, en coordonnees de la fenetre d'origine (850 x 419).
-static constexpr double kPageColumnX[] = { 75.0, 468.0 };       // centre des cases, par colonne
+// Settings page grid, in native window coordinates (850 x 419).
+static constexpr double kPageColumnX[] = { 75.0, 468.0 };       // checkbox centers, per column
 static constexpr double kPageRowY[] = { 138.0, 228.0, 318.0 };
 
 // ============================================================
-// Globales
+// Globals
 // ============================================================
 
 static YYTKInterface* g_Yytk = nullptr;
@@ -64,7 +64,7 @@ struct RegisteredMod
 
 static std::vector<RegisteredMod> g_Mods;
 
-// Galerie de sprites (Debug)
+// Sprite gallery (Debug)
 static int g_GalleryPage = 0;
 
 static const char* kGallerySmall[] = {
@@ -88,28 +88,28 @@ static const char* kGalleryBig[] = {
 
 static constexpr int kGallerySmallCount = static_cast<int>(sizeof(kGallerySmall) / sizeof(kGallerySmall[0]));
 static constexpr int kGalleryBigCount = static_cast<int>(sizeof(kGalleryBig) / sizeof(kGalleryBig[0]));
-static constexpr int kGalleryPages = 1 + kGalleryBigCount;      // page 1 = petits sprites, pages 2.. = grands
+static constexpr int kGalleryPages = 1 + kGalleryBigCount;      // page 1 = small sprites, pages 2.. = large ones
 
-// Etat de l'interface
-static bool g_PanelOpen = false;             // notre fenetre (menu des mods ou reglages) est ouverte
-static int  g_ModPage = 0;                   // 0 = menu des mods, N = reglages du mod numero N - 1
-static ULONGLONG g_PanelOpenedAt = 0;        // moment de son ouverture
-static bool g_OptionsOpen = false;           // le menu Options du jeu est completement affiche
-static bool g_HoverThisCall = false;         // un de nos boutons est survole
-static bool g_CursorIsHover = false;         // le curseur du jeu est en mode "survol"
+// UI state
+static bool g_PanelOpen = false;             // our window (mods menu or settings) is open
+static int  g_ModPage = 0;                   // 0 = mods menu, N = settings of mod number N - 1
+static ULONGLONG g_PanelOpenedAt = 0;        // when it was opened
+static bool g_OptionsOpen = false;           // the game's Options menu is fully shown
+static bool g_HoverThisCall = false;         // one of our buttons is hovered
+static bool g_CursorIsHover = false;         // the game cursor is in "hover" mode
 
 // ============================================================
-// Utilitaires GameMaker
+// GameMaker helpers
 // ============================================================
 
-// Convertit une valeur GameMaker numerique en double (via sa representation texte).
+// Converts a numeric GameMaker value to a double (through its text form).
 static double ReadNumber(RValue Value)
 {
     std::string s(Value.ToString());
     return std::atof(s.c_str());
 }
 
-// Vrai si la valeur GameMaker est "vraie" (true, 1, ou tout nombre non nul).
+// True if the GameMaker value is truthy (true, 1, or any non-zero number).
 static bool IsTrue(RValue Value)
 {
     std::string s(Value.ToString());
@@ -117,8 +117,8 @@ static bool IsTrue(RValue Value)
     return std::atof(s.c_str()) != 0.0;
 }
 
-// Vrai si la fenetre au premier plan appartient au jeu (evite de reagir aux touches
-// tapees dans une autre application).
+// True if the foreground window belongs to the game (avoids reacting to keys
+// typed in another application).
 static bool GameHasFocus()
 {
     HWND fg = GetForegroundWindow();
@@ -131,22 +131,22 @@ static bool GameHasFocus()
 }
 
 // ============================================================
-// Souris et dessin
+// Mouse and drawing
 // ============================================================
 
 struct MouseState
 {
-    double x = 0.0;           // position selon GameMaker (coordonnees GUI)
+    double x = 0.0;           // position according to GameMaker (GUI coordinates)
     double y = 0.0;
-    double wx = 0.0;          // position selon Windows, convertie en coordonnees GUI
+    double wx = 0.0;          // position according to Windows, converted to GUI coordinates
     double wy = 0.0;
-    bool hasWin = false;      // les coordonnees Windows sont valides
-    bool pressed = false;     // clic gauche tout juste enfonce
-    bool down = false;        // bouton gauche actuellement maintenu
-    bool focus = false;       // la fenetre du jeu est au premier plan
+    bool hasWin = false;      // the Windows coordinates are valid
+    bool pressed = false;     // left button just pressed
+    bool down = false;        // left button currently held
+    bool focus = false;       // the game window is in the foreground
 };
 
-static MouseState g_LastMouse;            // derniere position de souris connue (survol du M)
+static MouseState g_LastMouse;            // last known mouse position (M button hover)
 
 static RValue Real(double V) { return RValue(V); }
 
@@ -161,7 +161,7 @@ static void GmAlpha(double A)
     g_Yytk->CallBuiltin("draw_set_alpha", { Real(A) });
 }
 
-static void GmAlign(int H, int V)   // 0 = gauche/haut, 1 = centre, 2 = droite/bas
+static void GmAlign(int H, int V)   // 0 = left/top, 1 = center, 2 = right/bottom
 {
     g_Yytk->CallBuiltin("draw_set_halign", { Real(H) });
     g_Yytk->CallBuiltin("draw_set_valign", { Real(V) });
@@ -194,7 +194,7 @@ static bool Inside(const MouseState& M, double X1, double Y1, double X2, double 
     return M.hasWin && M.wx >= X1 && M.wx <= X2 && M.wy >= Y1 && M.wy <= Y2;
 }
 
-// Fenetre du jeu (titre "The Slormancer"), sinon la fenetre au premier plan du processus.
+// Game window (titled "The Slormancer"), otherwise the process's foreground window.
 static HWND GetGameWindow()
 {
     static HWND cached = nullptr;
@@ -222,14 +222,14 @@ static MouseState ReadMouse(double W, double H)
 {
     MouseState m;
 
-    // Position selon GameMaker.
+    // Position according to GameMaker.
     m.x = ReadNumber(g_Yytk->CallBuiltin("device_mouse_x_to_gui", { Real(0) }));
     m.y = ReadNumber(g_Yytk->CallBuiltin("device_mouse_y_to_gui", { Real(0) }));
 
     HWND hwnd = GetGameWindow();
     if (hwnd)
     {
-        // Position selon Windows, ramenee aux coordonnees GUI.
+        // Position according to Windows, mapped to GUI coordinates.
         POINT p;
         RECT rc;
         if (GetCursorPos(&p) && ScreenToClient(hwnd, &p) && GetClientRect(hwnd, &rc))
@@ -244,7 +244,7 @@ static MouseState ReadMouse(double W, double H)
             }
         }
 
-        // Clic gauche : front montant, uniquement si la fenetre du jeu est au premier plan.
+        // Left click: rising edge, only while the game window is in the foreground.
         static bool wasDown = false;
         m.focus = (GetForegroundWindow() == hwnd);
         const bool down = m.focus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
@@ -254,7 +254,7 @@ static MouseState ReadMouse(double W, double H)
     }
     else
     {
-        // Pas de fenetre trouvee : on se rabat sur l'entree GameMaker.
+        // No window found: fall back to GameMaker input.
         m.pressed = IsTrue(g_Yytk->CallBuiltin("mouse_check_button_pressed", { Real(1) }));  // 1 = mb_left
     }
 
@@ -262,17 +262,17 @@ static MouseState ReadMouse(double W, double H)
 }
 
 // ------------------------------------------------------------
-// Sprites du jeu : on reutilise les elements de la fenetre Options pour que nos pages aient le meme
-// style (cadre, cases en losange, fleches de selection, bouton de fermeture).
+// Game sprites: we reuse the Options window's elements so our pages share the same
+// style (frame, diamond checkboxes, selector arrows, close button).
 // ------------------------------------------------------------
 
 struct GmSprite
 {
     bool   ok = false;
     double index = -1.0;
-    double w = 0.0;     // taille d'origine en pixels
+    double w = 0.0;     // native size in pixels
     double h = 0.0;
-    double xo = 0.0;     // point d'origine du sprite
+    double xo = 0.0;     // sprite origin
     double yo = 0.0;
 };
 
@@ -299,7 +299,7 @@ static const GmSprite& GetSprite(const char* Name)
     return cache.emplace(Name, sp).first->second;
 }
 
-// Dessine un sprite dont le coin haut-gauche est en (X, Y).
+// Draws a sprite with its top-left corner at (X, Y).
 static void DrawSpriteTL(const GmSprite& Sp, int Frame, double X, double Y, double XScale, double YScale,
     double Color = 16777215.0)
 {
@@ -311,7 +311,7 @@ static void DrawSpriteTL(const GmSprite& Sp, int Frame, double X, double Y, doub
           Real(XScale), Real(YScale), Real(0.0), Real(Color), Real(1.0) });
 }
 
-// Dessine un sprite centre sur (Cx, Cy).
+// Draws a sprite centered on (Cx, Cy).
 static void DrawSpriteCentered(const GmSprite& Sp, int Frame, double Cx, double Cy, double Scale)
 {
     DrawSpriteTL(Sp, Frame, Cx - Sp.w * 0.5 * Scale, Cy - Sp.h * 0.5 * Scale, Scale, Scale);
@@ -323,13 +323,13 @@ static double TextWidth(const char* Text)
 }
 
 // ============================================================
-// Elements d'interface
+// UI elements
 // ============================================================
 
-// Taille de la coche orange par rapport au losange (a ajuster au gout).
+// Size of the orange check mark relative to the diamond (tune to taste).
 static constexpr double kToggleCrossScale = 1.6;
 
-// Case en losange + libelle, comme les options du jeu. Renvoie vrai au clic.
+// Diamond checkbox + label, like the game's options. Returns true when clicked.
 static bool UiToggle(const MouseState& M, double Cx, double Cy, double Scale,
     double TextScale, const char* Label, bool On)
 {
@@ -354,7 +354,7 @@ static bool UiToggle(const MouseState& M, double Cx, double Cy, double Scale,
     return hover && M.pressed;
 }
 
-// Fleche de selection (triangle rouge). Renvoie vrai au clic.
+// Selector arrow (red triangle). Returns true when clicked.
 static bool UiArrow(const MouseState& M, double Cx, double Cy, double Scale, bool Left)
 {
     const GmSprite& sp = GetSprite(Left ? "spr_selector_btn_l_v2" : "spr_selector_btn_r_v2");
@@ -369,7 +369,7 @@ static bool UiArrow(const MouseState& M, double Cx, double Cy, double Scale, boo
     return hover && M.pressed;
 }
 
-// Bouton de fermeture (croix rouge du jeu). Renvoie vrai au clic.
+// Close button (the game's red cross). Returns true when clicked.
 static bool UiCloseButton(const MouseState& M, double Cx, double Cy, double Scale)
 {
     const GmSprite& sp = GetSprite("spr_menu_escape_button");
@@ -383,7 +383,7 @@ static bool UiCloseButton(const MouseState& M, double Cx, double Cy, double Scal
     return hover && M.pressed;
 }
 
-// Un encadre cliquable (barre doree du jeu avec fleche) : libelle a gauche, etat a droite.
+// A clickable tile (the game's golden bar with an arrow): label on the left, status on the right.
 static bool UiTile(const MouseState& M, double X, double Y, double Scale, double TextScale,
     const char* Label, const char* Status, int Sr, int Sg, int Sb)
 {
@@ -397,7 +397,7 @@ static bool UiTile(const MouseState& M, double X, double Y, double Scale, double
 
     if (sp.ok)
     {
-        // Un peu assombri au repos, pleine luminosite au survol.
+        // Slightly dimmed at rest, full brightness on hover.
         DrawSpriteTL(sp, 0, X, Y, Scale, Scale, hover ? 16777215.0 : 11842740.0);
     }
     else
@@ -413,7 +413,7 @@ static bool UiTile(const MouseState& M, double X, double Y, double Scale, double
     GmText(X + 0.07 * w, Y + h * 0.5, Label, TextScale * 1.25);
 
     GmColor(Sr, Sg, Sb);
-    GmAlign(2, 1);                                  // aligne a droite, avant la fleche doree
+    GmAlign(2, 1);                                  // right-aligned, before the golden arrow
     GmText(X + 0.80 * w, Y + h * 0.5, Status, TextScale * 0.9);
     GmAlign(0, 0);
 
@@ -421,30 +421,30 @@ static bool UiTile(const MouseState& M, double X, double Y, double Scale, double
 }
 
 // ============================================================
-// Fenetre commune au menu MODS et aux pages de reglages : meme cadre que les menus du jeu
-// (bandeau de titre + corps), centree a l'ecran.
+// Window shared by the MODS menu and the settings pages: same frame as the game's menus
+// (title band + body), centered on screen.
 // ============================================================
 
 struct WindowContext
 {
     MouseState mouse;
-    double wx = 0.0;          // coin haut-gauche de la fenetre a l'ecran
+    double wx = 0.0;          // top-left corner of the window on screen
     double wy = 0.0;
-    double ws = 1.0;          // echelle de la fenetre
-    double ts = 1.0;          // echelle du texte
-    double nw = 850.0;        // dimensions d'origine du cadre (850 x 419)
+    double ws = 1.0;          // window scale
+    double ts = 1.0;          // text scale
+    double nw = 850.0;        // native frame size (850 x 419)
     double nh = 419.0;
-    bool   inModPage = false; // un mod est en train de dessiner sa page
+    bool   inModPage = false; // a mod is currently drawing its page
 };
 
 static WindowContext g_Win;
 
-// Conversion des coordonnees de la fenetre d'origine vers l'ecran.
+// Converts native window coordinates to screen coordinates.
 static double WinX(double Nx) { return g_Win.wx + Nx * g_Win.ws; }
 static double WinY(double Ny) { return g_Win.wy + Ny * g_Win.ws; }
 
-// Assombrit le jeu, dessine le cadre et renseigne g_Win. WidthRatio = largeur de la fenetre
-// par rapport a celle de l'ecran. L'echelle du texte (g_Win.ts) est a fixer par l'appelant.
+// Dims the game, draws the frame and fills g_Win. WidthRatio = window width
+// relative to the screen width. The caller sets the text scale (g_Win.ts).
 static void BeginWindow(double W, double H, double WidthRatio, const MouseState& M)
 {
     GmColor(0, 0, 0);
@@ -474,7 +474,7 @@ static void BeginWindow(double W, double H, double WidthRatio, const MouseState&
     }
 }
 
-// Titre dans le bandeau.
+// Title in the band.
 static void DrawWindowTitle(const char* Title)
 {
     GmColor(255, 255, 255);
@@ -483,7 +483,7 @@ static void DrawWindowTitle(const char* Title)
     GmAlign(0, 0);
 }
 
-// Ligne d'aide, en bas de la fenetre.
+// Help line, at the bottom of the window.
 static void DrawWindowHelp(const char* Help)
 {
     GmColor(150, 140, 126);
@@ -492,14 +492,14 @@ static void DrawWindowHelp(const char* Help)
     GmAlign(0, 0);
 }
 
-// Croix du jeu dans le bandeau (Echap est gere par DrawModPanel). Renvoie vrai au clic.
+// The game's cross in the band (Esc is handled by DrawModPanel). Returns true when clicked.
 static bool DrawWindowCloseButton()
 {
     return UiCloseButton(g_Win.mouse, WinX(g_Win.nw - 44.0), WinY(43.0), g_Win.ws * 0.75);
 }
 
 // ============================================================
-// Interface Aurie offerte aux mods
+// Aurie interface offered to mods
 // ============================================================
 
 struct ModMenuInterface final : ModMenu::IModMenu
@@ -592,17 +592,17 @@ struct ModMenuInterface final : ModMenu::IModMenu
 static ModMenuInterface g_Interface;
 
 // ============================================================
-// Mods externes : des mods qui ne connaissent pas ce menu. On leur ajoute un encadre avec une
-// page d'explication, sans toucher a leur code.
+// External mods: mods that do not know about this menu. We give them a tile with an
+// information page, without touching their code.
 //
-// SlormReforger (https://github.com/wistb/SlormReforger) a sa propre fenetre de reglages ;
-// sa touche est lue dans SlormReforger.txt, a cote de sa DLL.
+// SlormReforger (https://github.com/wistb/SlormReforger) has its own settings window;
+// its hotkey is read from SlormReforger.txt, next to its DLL.
 // ============================================================
 
-static char g_ModsFolder[MAX_PATH] = {};      // dossier de notre DLL (mods\Aurie\), avec le \ final
-static char g_ReforgerKeyText[48] = "Touche : F6";
+static char g_ModsFolder[MAX_PATH] = {};      // folder of our DLL (mods/Aurie), with the trailing separator
+static char g_ReforgerKeyText[48] = "Hotkey: F6";
 
-// Une ligne de texte dans la page d'un mod, en coordonnees de la fenetre d'origine.
+// One line of text in a mod's page, in native window coordinates.
 static void PageText(double Nx, double Ny, const char* Text, int R, int G, int B)
 {
     GmColor(R, G, B);
@@ -613,7 +613,7 @@ static void PageText(double Nx, double Ny, const char* Text, int R, int G, int B
 
 static void ReforgerReadKey()
 {
-    int key = VK_F6;                          // touche par defaut de SlormReforger
+    int key = VK_F6;                          // SlormReforger's default hotkey
 
     FILE* f = nullptr;
     const std::string path = std::string(g_ModsFolder) + "SlormReforger.txt";
@@ -630,9 +630,9 @@ static void ReforgerReadKey()
     }
 
     if (key >= VK_F1 && key <= VK_F24)
-        std::snprintf(g_ReforgerKeyText, sizeof(g_ReforgerKeyText), "Touche : F%d", key - VK_F1 + 1);
+        std::snprintf(g_ReforgerKeyText, sizeof(g_ReforgerKeyText), "Hotkey: F%d", key - VK_F1 + 1);
     else
-        std::snprintf(g_ReforgerKeyText, sizeof(g_ReforgerKeyText), "Touche : code %d", key);
+        std::snprintf(g_ReforgerKeyText, sizeof(g_ReforgerKeyText), "Hotkey: key code %d", key);
 }
 
 static void ReforgerDrawPage(ModMenu::IModMenu*, void*)
@@ -640,22 +640,22 @@ static void ReforgerDrawPage(ModMenu::IModMenu*, void*)
     const double left = kPageColumnX[0] - 28.0;
     const double right = kPageColumnX[1] - 28.0;
 
-    // --- Colonne gauche : comment s'en servir ---
-    PageText(left, 138.0, "Reforge automatique chez Friedrich", 255, 226, 140);
-    PageText(left, 198.0, "1. Parle a Friedrich, le forgeron", 255, 255, 255);
-    PageText(left, 243.0, "2. Ouvre la reforge d'equipement", 255, 255, 255);
-    PageText(left, 288.0, "3. Place un objet dans l'emplacement", 255, 255, 255);
-    PageText(left, 333.0, "La fenetre SlormReforger apparait", 200, 200, 200);
+    // --- Left column: how to use it ---
+    PageText(left, 138.0, "Automatic reforging at Friedrich's", 255, 226, 140);
+    PageText(left, 198.0, "1. Talk to Friedrich, the blacksmith", 255, 255, 255);
+    PageText(left, 243.0, "2. Open Reforge Equipment", 255, 255, 255);
+    PageText(left, 288.0, "3. Put an item in the slot", 255, 255, 255);
+    PageText(left, 333.0, "The SlormReforger window appears", 200, 200, 200);
 
-    // --- Colonne droite : touche et reglages ---
+    // --- Right column: hotkey and settings ---
     PageText(right, 138.0, g_ReforgerKeyText, 255, 226, 140);
-    PageText(right, 183.0, "Affiche ou cache sa fenetre", 200, 200, 200);
-    PageText(right, 258.0, "Reglages", 255, 226, 140);
-    PageText(right, 303.0, "Onglet Options de sa fenetre", 200, 200, 200);
+    PageText(right, 183.0, "Shows or hides its window", 200, 200, 200);
+    PageText(right, 258.0, "Settings", 255, 226, 140);
+    PageText(right, 303.0, "Options tab of its window", 200, 200, 200);
 }
 
-// Ajoute au menu les mods externes charges dans le jeu. Appele a chaque ouverture du menu :
-// ces mods peuvent etre charges apres nous.
+// Adds the external mods loaded in the game to the menu. Called every time the menu opens:
+// those mods may be loaded after us.
 static void DetectExternalMods()
 {
     static bool reforgerAdded = false;
@@ -671,21 +671,21 @@ static void DetectExternalMods()
     ModMenu::ModEntry entry = {};
     entry.Name = "SLORMREFORGER";
     entry.Title = "MOD  -  SLORMREFORGER";
-    entry.Help = "Mod de wistb  -  ses reglages se font dans sa propre fenetre  -  Echap : retour";
+    entry.Help = "Mod by wistb  -  its settings live in its own window  -  Esc: back";
     entry.DrawPage = ReforgerDrawPage;
 
     reforgerAdded = g_Interface.RegisterMod(entry);
 }
 
 // ============================================================
-// Pages : menu MODS et reglages d'un mod
+// Pages: MODS menu and a mod's settings
 // ============================================================
 
-// Page 0 : menu des mods (un encadre par mod). Renvoie vrai si le joueur demande a fermer le menu.
+// Page 0: mods menu (one tile per mod). Returns true if the player asks to close the menu.
 static bool DrawModsMenu(double W, double H, const MouseState& M)
 {
     BeginWindow(W, H, 0.40, M);
-    g_Win.ts = (H / 1440.0) * 1.05;          // meme taille de texte que les pages de reglages
+    g_Win.ts = (H / 1440.0) * 1.05;          // same text size as the settings pages
 
     DrawWindowTitle("MODS");
 
@@ -695,11 +695,11 @@ static bool DrawModsMenu(double W, double H, const MouseState& M)
     {
         GmColor(200, 200, 200);
         GmAlign(1, 1);
-        GmText(WinX(g_Win.nw * 0.5), WinY(215.0), "Aucun mod installe", g_Win.ts);
+        GmText(WinX(g_Win.nw * 0.5), WinY(215.0), "No mod installed", g_Win.ts);
         GmAlign(0, 0);
     }
 
-    // Un ou deux mods : grands encadres l'un sous l'autre. Au-dela : grille de 2 colonnes.
+    // One or two mods: large tiles stacked vertically. More: a 2-column grid.
     const bool grid = count > 2;
     const double tileScale = grid ? 0.85 : 1.25;
     const double tileText = g_Win.ts * (tileScale / 1.25);
@@ -716,13 +716,13 @@ static bool DrawModsMenu(double W, double H, const MouseState& M)
         if (mod.IsActive)
         {
             const bool active = mod.IsActive(mod.user);
-            status = active ? "ACTIF" : "INACTIF";
+            status = active ? "ACTIVE" : "INACTIVE";
             sr = active ? 130 : 214;
             sg = active ? 205 : 96;
             sb = active ? 120 : 72;
         }
 
-        // Un clic ouvre les reglages du mod.
+        // A click opens the mod's settings.
         if (UiTile(M, WinX(nx), WinY(ny), g_Win.ws * tileScale, tileText, mod.name.c_str(), status, sr, sg, sb))
         {
             g_ModPage = i + 1;
@@ -730,13 +730,13 @@ static bool DrawModsMenu(double W, double H, const MouseState& M)
         }
     }
 
-    DrawWindowHelp("Clique sur un mod pour ouvrir ses reglages  -  Echap : retour");
+    DrawWindowHelp("Click a mod to open its settings  -  Esc: back");
 
     return DrawWindowCloseButton();
 }
 
-// Page de reglages d'un mod : le cadre est le notre, le contenu est dessine par le mod.
-// Renvoie vrai si le joueur demande a fermer la page.
+// A mod's settings page: the frame is ours, the content is drawn by the mod.
+// Returns true if the player asks to close the page.
 static bool DrawModPage(double W, double H, const MouseState& M, const RegisteredMod& Mod)
 {
     BeginWindow(W, H, 0.62, M);
@@ -744,7 +744,7 @@ static bool DrawModPage(double W, double H, const MouseState& M, const Registere
 
     DrawWindowTitle(Mod.title.c_str());
 
-    // Trait de separation central.
+    // Central separator line.
     DrawSpriteTL(GetSprite("spr_settings_separator"), 0, WinX(403.0), WinY(98.0),
         g_Win.ws, g_Win.ws * (265.0 / 531.0));
 
@@ -758,19 +758,19 @@ static bool DrawModPage(double W, double H, const MouseState& M, const Registere
     return DrawWindowCloseButton();
 }
 
-// Valeurs d'origine du menu Options, memorisees pour etre restaurees telles quelles.
+// Original values of the Options menu, saved to be restored as they were.
 static double g_SavedMenuY = 0.0;
 static double g_SavedPanelY = 1100.0;
 
-// Valeurs du menu quand il est completement ferme (lues tant qu'Options est ferme). Servent a
-// remettre le menu en ordre si le jeu le ferme alors que notre page est ouverte.
+// Menu values when it is fully closed (read while Options is closed). Used to
+// put the menu back in order if the game closes it while our page is open.
 static double g_ClosedMenuY = -1440.0;
 static double g_ClosedPanelY = -100.0;
 static bool   g_HaveClosedValues = false;
 
-// Ecarte le menu Options de l'ecran pendant que notre page est ouverte, puis le remet en place :
-//  - menu_y_pos  : la fenetre elle-meme (0 = affichee, -1440 = cachee)
-//  - panel_y_pos : le bandeau (1100 = affiche, -1500 = hors ecran)
+// Moves the Options menu off screen while our page is open, then puts it back:
+//  - menu_y_pos  : the window itself (0 = shown, -1440 = hidden)
+//  - panel_y_pos : the band (1100 = shown, -1500 = off screen)
 static void SetOptionsWindowHidden(bool Hidden)
 {
     RValue obj = g_Yytk->CallBuiltin("asset_get_index", { "obj_ui_next_gen" });
@@ -786,10 +786,10 @@ static void SetOptionsWindowHidden(bool Hidden)
         g_SavedPanelY = ReadNumber(g_Yytk->CallBuiltin("variable_instance_get", { inst, "panel_y_pos" }));
 
         if (g_Debug)
-            DbgPrintEx(LOG_SEVERITY_INFO, "[ModMenu] page ouverte : menu_y_pos=%.0f panel_y_pos=%.0f (valeurs lues)",
+            DbgPrintEx(LOG_SEVERITY_INFO, "[ModMenu] page opened: menu_y_pos=%.0f panel_y_pos=%.0f (values read)",
                 g_SavedMenuY, g_SavedPanelY);
 
-        // Si on les lit deja "cachees", on garde les valeurs d'un menu ouvert.
+        // If they already read as "hidden", keep the values of an open menu.
         if (g_SavedMenuY < -20.0)  g_SavedMenuY = 0.0;
         if (g_SavedPanelY < 200.0) g_SavedPanelY = 1100.0;
 
@@ -802,13 +802,13 @@ static void SetOptionsWindowHidden(bool Hidden)
         g_Yytk->CallBuiltin("variable_instance_set", { inst, "panel_y_pos", Real(g_SavedPanelY) });
 
         if (g_Debug)
-            DbgPrintEx(LOG_SEVERITY_INFO, "[ModMenu] page fermee : menu_y_pos=%.0f panel_y_pos=%.0f (valeurs restaurees)",
+            DbgPrintEx(LOG_SEVERITY_INFO, "[ModMenu] page closed: menu_y_pos=%.0f panel_y_pos=%.0f (values restored)",
                 g_SavedMenuY, g_SavedPanelY);
     }
 }
 
-// Le jeu a ferme Options alors que notre page etait ouverte : on remet le menu dans son etat
-// "ferme" (et non dans l'etat "ouvert" memorise a l'ouverture de la page).
+// The game closed Options while our page was open: put the menu back in its
+// "closed" state (not the "open" state saved when the page was opened).
 static void RestoreClosedMenuState()
 {
     RValue obj = g_Yytk->CallBuiltin("asset_get_index", { "obj_ui_next_gen" });
@@ -821,11 +821,11 @@ static void RestoreClosedMenuState()
     g_Yytk->CallBuiltin("variable_instance_set", { inst, "panel_y_pos", Real(g_ClosedPanelY) });
 
     if (g_Debug)
-        DbgPrintEx(LOG_SEVERITY_INFO, "[ModMenu] menu ferme par le jeu pendant la page : menu_y_pos=%.0f panel_y_pos=%.0f remis en etat ferme",
+        DbgPrintEx(LOG_SEVERITY_INFO, "[ModMenu] menu closed by the game while the page was open: menu_y_pos=%.0f panel_y_pos=%.0f reset to closed state",
             g_ClosedMenuY, g_ClosedPanelY);
 }
 
-// Fenetre des mods : aiguille vers le menu des mods ou les reglages, et gere la fermeture.
+// Mods window: routes to the mods menu or the settings, and handles closing.
 static void DrawModPanel(double W, double H, const MouseState& M)
 {
     if (g_ModPage < 0 || g_ModPage > static_cast<int>(g_Mods.size()))
@@ -833,7 +833,7 @@ static void DrawModPanel(double W, double H, const MouseState& M)
 
     bool back = (g_ModPage == 0) ? DrawModsMenu(W, H, M) : DrawModPage(W, H, M, g_Mods[g_ModPage - 1]);
 
-    // Echap ferme aussi (front montant lu via Windows).
+    // Esc closes too (rising edge read through Windows).
     static bool wasEsc = false;
     const bool escDown = M.focus && (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
     if (escDown && !wasEsc)
@@ -842,20 +842,20 @@ static void DrawModPanel(double W, double H, const MouseState& M)
     }
     wasEsc = escDown;
 
-    // Garde : on ne ferme pas juste apres une ouverture ou un changement de page.
+    // Guard: do not close right after opening or changing page.
     const bool justChanged = (GetTickCount64() - g_PanelOpenedAt) < 400;
 
     if (back && !justChanged)
     {
         if (g_ModPage != 0)
         {
-            // Des reglages : retour au menu des mods.
+            // From the settings: back to the mods menu.
             g_ModPage = 0;
             g_PanelOpenedAt = GetTickCount64();
         }
         else
         {
-            // Du menu des mods : retour au menu Options du jeu.
+            // From the mods menu: back to the game's Options menu.
             g_PanelOpen = false;
             SetOptionsWindowHidden(false);
         }
@@ -863,12 +863,12 @@ static void DrawModPanel(double W, double H, const MouseState& M)
 }
 
 // ============================================================
-// Bouton "M" du menu Options
+// "M" button of the Options menu
 // ============================================================
 
 static void ModButtonRect(double W, double H, double& X1, double& Y1, double& X2, double& Y2)
 {
-    // Emplacement d'origine, a cote de la fleche du HUD (voir la maquette).
+    // Original spot, next to the HUD arrow (see the mock-up).
     const double size = 0.045 * H;
     const double cx = 0.839 * W;
     const double cy = 0.927 * H;
@@ -878,8 +878,8 @@ static void ModButtonRect(double W, double H, double& X1, double& Y1, double& X2
     Y2 = cy + size * 0.5;
 }
 
-// Le M est DESSINE par le script du menu Options (SettingsMenuHook), dans le meme tampon que la
-// fenetre. Ici on ne gere que le survol et le clic, une fois par image.
+// The M is DRAWN by the Options menu script (SettingsMenuHook), in the same buffer as the
+// window. Here we only handle hover and click, once per frame.
 static void HandleModButtonClick(double W, double H, const MouseState& M)
 {
     double x1, y1, x2, y2;
@@ -899,8 +899,8 @@ static void HandleModButtonClick(double W, double H, const MouseState& M)
     }
 }
 
-// Un losange du jeu avec la lettre M dedans.
-// Dessine dans le tampon de la fenetre Options ; le clic est gere ailleurs.
+// One of the game's diamonds with the letter M inside.
+// Drawn in the Options window's buffer; the click is handled elsewhere.
 static void DrawModButton(const MouseState& M, double W, double H)
 {
     double x1, y1, x2, y2;
@@ -934,8 +934,8 @@ static void DrawModButton(const MouseState& M, double W, double H)
 }
 
 // ------------------------------------------------------------
-// Galerie de sprites (Debug=1, touche Fin) : affiche les sprites d'interface du jeu avec leur nom,
-// pour pouvoir copier leur apparence dans nos propres fenetres. Page 0 = fermee.
+// Sprite gallery (Debug=1, End key): shows the game's UI sprites with their names,
+// so their look can be reused in our own windows. Page 0 = closed.
 // ------------------------------------------------------------
 
 static void HandleGalleryKey()
@@ -962,7 +962,7 @@ static void GalleryDrawSprite(RValue Sprite, int Frame, double X, double Y, doub
 
 static void DrawSpriteGallery(double W, double H)
 {
-    // Fond uni : les sprites a fond transparent restent lisibles.
+    // Solid background: sprites with a transparent background stay readable.
     GmAlpha(0.95);
     GmColor(34, 34, 42);
     GmRect(0, 0, W, H, false);
@@ -971,7 +971,7 @@ static void DrawSpriteGallery(double W, double H)
     GmAlign(0, 0);
 
     char title[96];
-    std::snprintf(title, sizeof(title), "Galerie de sprites - page %d / %d (touche Fin = page suivante)",
+    std::snprintf(title, sizeof(title), "Sprite gallery - page %d / %d (End key = next page)",
         g_GalleryPage, kGalleryPages);
     GmText(20, 8, title, 0.7);
 
@@ -1030,7 +1030,7 @@ static void DrawSpriteGallery(double W, double H)
                 if (scale > 2.0) scale = 2.0;
 
                 char label[96];
-                std::snprintf(label, sizeof(label), "%s  %.0fx%.0f  (affiche a x%.2f)", kGalleryBig[bigIndex], w, h, scale);
+                std::snprintf(label, sizeof(label), "%s  %.0fx%.0f  (shown at x%.2f)", kGalleryBig[bigIndex], w, h, scale);
                 GmColor(255, 220, 140);
                 GmText(20, 34, label, 0.6);
 
@@ -1043,17 +1043,17 @@ static void DrawSpriteGallery(double W, double H)
 }
 
 // ============================================================
-// Etat du menu Options et hooks
+// Options menu state and hooks
 //
-// - SettingsMenuHook : dessine le M dans le meme tampon que la fenetre Options.
-// - HudDrawHook (chaque image) : lit la souris, gere le clic sur le M et dessine nos pages.
-// - MenusManagerHook : suspend la gestion des menus du jeu tant que notre page est ouverte,
-//   pour que nos clics ne touchent pas le menu d'origine.
-// - Pendant que notre page est ouverte, la fenetre Options est ecartee de l'ecran.
+// - SettingsMenuHook: draws the M in the same buffer as the Options window.
+// - HudDrawHook (every frame): reads the mouse, handles the click on the M and draws our pages.
+// - MenusManagerHook: suspends the game's menu handling while our page is open,
+//   so our clicks do not reach the original menu.
+// - While our page is open, the Options window is moved off screen.
 // ============================================================
 
-// Fait passer le curseur du jeu en mode "survol" (spr_cursor_hover) quand un de nos boutons
-// est survole, comme pour les boutons du jeu. Ne fait quelque chose qu'au changement d'etat.
+// Switches the game cursor to "hover" mode (spr_cursor_hover) when one of our buttons
+// is hovered, like the game's own buttons. Only acts when the state changes.
 static void ApplyCursorHover()
 {
     if (g_HoverThisCall == g_CursorIsHover)
@@ -1072,8 +1072,8 @@ static void ApplyCursorHover()
     g_Yytk->CallBuiltin("variable_instance_set", { inst, "sprite_index", spr });
 }
 
-// Lit l'etat du menu dans obj_ui_next_gen : menu_show vaut "settings" quand Options est affiche,
-// et menu_y_pos passe de -1440 (cache) a 0 (completement affiche) pendant l'animation.
+// Reads the menu state from obj_ui_next_gen: menu_show is "settings" when Options is shown,
+// and menu_y_pos goes from -1440 (hidden) to 0 (fully shown) during the animation.
 static void RefreshMenuState()
 {
     g_OptionsOpen = false;
@@ -1091,7 +1091,7 @@ static void RefreshMenuState()
     RValue y = g_Yytk->CallBuiltin("variable_instance_get", { inst, "menu_y_pos" });
     const double yPos = ReadNumber(y);
 
-    // Menu completement ferme : on memorise ses valeurs "fermees".
+    // Menu fully closed: remember its "closed" values.
     if (showStr != "settings" && !g_PanelOpen && yPos <= -1400.0)
     {
         g_ClosedMenuY = yPos;
@@ -1099,11 +1099,11 @@ static void RefreshMenuState()
         g_HaveClosedValues = true;
     }
 
-    // Pendant que notre page est ouverte, la fenetre est volontairement hors ecran.
+    // While our page is open, the window is deliberately off screen.
     g_OptionsOpen = (showStr == "settings") && (g_PanelOpen || yPos > -20.0);
 }
 
-// Le M est dessine par le script du menu Options, dans le meme tampon que la fenetre.
+// The M is drawn by the Options menu script, in the same buffer as the window.
 RValue& SettingsMenuHook(
     IN CInstance* Self,
     IN CInstance* Other,
@@ -1119,8 +1119,8 @@ RValue& SettingsMenuHook(
         const double W = ReadNumber(g_Yytk->CallBuiltin("display_get_gui_width", {}));
         const double H = ReadNumber(g_Yytk->CallBuiltin("display_get_gui_height", {}));
 
-        MouseState m = g_LastMouse;     // survol memorise par le hook de chaque image
-        m.pressed = false;              // le clic est gere ailleurs
+        MouseState m = g_LastMouse;     // hover state saved by the per-frame hook
+        m.pressed = false;              // the click is handled elsewhere
 
         DrawModButton(m, W, H);
         GmResetState();
@@ -1129,8 +1129,8 @@ RValue& SettingsMenuHook(
     return Ret;
 }
 
-// Gestion des menus du jeu (Step, une fois par image). Quand notre page est ouverte,
-// on ne l'appelle pas : les clics sur nos boutons n'atteignent pas le menu d'origine.
+// The game's menu handling (Step, once per frame). While our page is open,
+// we do not call it: clicks on our buttons never reach the original menu.
 RValue& MenusManagerHook(
     IN CInstance* Self,
     IN CInstance* Other,
@@ -1145,7 +1145,7 @@ RValue& MenusManagerHook(
     return g_OriginalManager(Self, Other, Result, ArgumentCount, Arguments);
 }
 
-// Une fois par image : suivi des mods, etat du menu, souris, pages.
+// Once per frame: mod callbacks, menu state, mouse, pages.
 static void RunOverlay()
 {
     for (const RegisteredMod& mod : g_Mods)
@@ -1167,8 +1167,8 @@ static void RunOverlay()
 
     if (!g_OptionsOpen)
     {
-        // Options s'est ferme sans passer par notre bouton Retour : on ne laisse pas le menu
-        // coince dans l'etat "cache par le mod".
+        // Options closed without going through our close button: do not leave the menu
+        // stuck in the "hidden by the mod" state.
         if (g_PanelOpen && g_HaveClosedValues)
             RestoreClosedMenuState();
 
@@ -1194,7 +1194,7 @@ static void RunOverlay()
     ApplyCursorHover();
 }
 
-// Dessin de l'interface (Draw GUI, une fois par image).
+// UI drawing (Draw GUI, once per frame).
 RValue& HudDrawHook(
     IN CInstance* Self,
     IN CInstance* Other,
@@ -1209,10 +1209,10 @@ RValue& HudDrawHook(
 }
 
 // ============================================================
-// Initialisation du module
+// Module initialization
 // ============================================================
 
-// L'interface est creee ici, avant le ModuleInitialize des autres mods.
+// The interface is created here, before the other mods' ModuleInitialize.
 EXPORTED AurieStatus ModulePreinitialize(
     IN AurieModule* Module,
     IN const fs::path& ModulePath
@@ -1234,11 +1234,11 @@ EXPORTED AurieStatus ModuleInitialize(
 
     if (!g_Yytk)
     {
-        OutputDebugStringA("[ModMenu] ERREUR: interface YYToolkit introuvable\n");
+        OutputDebugStringA("[ModMenu] ERROR: YYToolkit interface not found\n");
         return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
     }
 
-    // --- Reglage facultatif : ModMenu.ini a cote de la DLL ---
+    // --- Optional setting: ModMenu.ini next to the DLL ---
     HMODULE hMod = nullptr;
     GetModuleHandleExA(
         GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -1257,7 +1257,7 @@ EXPORTED AurieStatus ModuleInitialize(
 
     g_Debug = GetPrivateProfileIntA("ModMenu", "Debug", 0, iniPath.c_str()) != 0;
 
-    // --- Installe un hook sur un script GameMaker ---
+    // --- Installs a hook on a GameMaker script ---
     auto installScriptHook = [&](const char* scriptName, const char* hookName,
         PVOID hookFunction, PFUNC_YYGMLScript& original) -> bool
         {
@@ -1282,7 +1282,7 @@ EXPORTED AurieStatus ModuleInitialize(
             return original != nullptr;
         };
 
-    // Le menu a besoin des trois hooks : s'il en manque un, on retire les autres.
+    // The menu needs all three hooks: if one is missing, remove the others.
     const bool okSettings = installScriptHook("gml_Script_scr_ui_menus_settings", "SettingsMenu",
         reinterpret_cast<PVOID>(SettingsMenuHook), g_OriginalSettings);
     const bool okManager = installScriptHook("gml_Script_scr_ui_menus_manager", "MenusManager",
@@ -1296,11 +1296,11 @@ EXPORTED AurieStatus ModuleInitialize(
         MmRemoveHook(Module, "MenusManager");
         MmRemoveHook(Module, "HudDraw");
 
-        DbgPrintEx(LOG_SEVERITY_ERROR, "[ModMenu] impossible d'installer les hooks du menu Options");
+        DbgPrintEx(LOG_SEVERITY_ERROR, "[ModMenu] could not install the Options menu hooks");
         return AURIE_OBJECT_NOT_FOUND;
     }
 
-    DbgPrintEx(LOG_SEVERITY_INFO, "[ModMenu] pret : bouton M du menu Options actif");
+    DbgPrintEx(LOG_SEVERITY_INFO, "[ModMenu] ready: M button of the Options menu enabled");
 
     return AURIE_SUCCESS;
 }

@@ -1,14 +1,14 @@
 // ============================================================
-// API du menu des mods pour The Slormancer (ModMenu.dll)
+// Mods menu API for The Slormancer (ModMenu.dll)
 //
-// ModMenu.dll ajoute le bouton "M" au menu Options du jeu et affiche un encadre par mod
-// enregistre. Un mod s'y ajoute depuis son ModuleInitialize :
+// ModMenu.dll adds the "M" button to the game's Options menu and shows one tile per
+// registered mod. A mod adds itself from its ModuleInitialize:
 //
 //   AurieInterfaceBase* base = nullptr;
 //   if (AurieSuccess(ObGetInterface(ModMenu::kInterfaceName, base)) && base)
 //       static_cast<ModMenu::IModMenu*>(base)->RegisterMod(entry);
 //
-// Si ModMenu.dll n'est pas installe, ObGetInterface echoue : le mod doit continuer sans menu.
+// If ModMenu.dll is not installed, ObGetInterface fails: the mod must carry on without a menu.
 // ============================================================
 
 #pragma once
@@ -20,36 +20,36 @@ namespace ModMenu
 
     struct IModMenu;
 
-    // Description d'un mod. Les textes sont copies par RegisterMod.
+    // Describes a mod. The strings are copied by RegisterMod.
     struct ModEntry
     {
-        const char* Name;       // texte de l'encadre dans le menu MODS (ex : "AUTOLOOT")
-        const char* Title;      // titre de la page de reglages (ex : "MOD  -  AUTOLOOT")
-        const char* Help;       // ligne d'aide en bas de la page (facultatif)
+        const char* Name;       // tile text in the MODS menu (e.g. "AUTOLOOT")
+        const char* Title;      // settings page title (e.g. "MOD  -  AUTOLOOT")
+        const char* Help;       // help line at the bottom of the page (optional)
 
-        // Etat affiche dans l'encadre : ACTIF / INACTIF. nullptr = pas d'etat.
+        // Status shown in the tile: ACTIVE / INACTIVE. nullptr = no status.
         bool (*IsActive)(void* User);
 
-        // Dessine la page de reglages, une fois par image tant qu'elle est ouverte.
-        // Menu->Toggle / Menu->Selector ne sont utilisables que pendant cet appel.
+        // Draws the settings page, once per frame while it is open.
+        // Menu->Toggle / Menu->Selector are only usable during this call.
         void (*DrawPage)(IModMenu* Menu, void* User);
 
-        // Appele une fois par image, menu ouvert ou non (facultatif).
+        // Called once per frame, whether the menu is open or not (optional).
         void (*OnFrame)(void* User);
 
-        void* User;             // renvoye tel quel aux fonctions ci-dessus
+        void* User;             // passed back as-is to the functions above
     };
 
-    // La page de reglages est une grille : 2 colonnes (0 = gauche, 1 = droite) x 3 lignes (0 a 2).
+    // The settings page is a grid: 2 columns (0 = left, 1 = right) x 3 rows (0 to 2).
     struct IModMenu : Aurie::AurieInterfaceBase
     {
-        // Ajoute un mod au menu (ou met a jour celui qui porte deja ce nom).
+        // Adds a mod to the menu (or updates the one that already has this name).
         virtual bool RegisterMod(const ModEntry& Entry) = 0;
 
-        // Case a cocher en losange avec son libelle. Renvoie vrai au clic.
+        // Diamond checkbox with its label. Returns true when clicked.
         virtual bool Toggle(int Column, int Row, const char* Label, bool On) = 0;
 
-        // Libelle + selecteur  <  valeur  >. Renvoie -1 (fleche gauche), +1 (fleche droite) ou 0.
+        // Label + selector  <  value  >. Returns -1 (left arrow), +1 (right arrow) or 0.
         virtual int Selector(int Column, int Row, const char* Label, const char* Value) = 0;
     };
 }

@@ -1,36 +1,34 @@
-# ModMenu pour The Slormancer
+# ModMenu for The Slormancer
 
-Ajoute un bouton **M** dans le menu Options du jeu. Il ouvre un menu **MODS** avec un encadré par
-mod installé ; un clic sur un encadré ouvre la page de réglages de ce mod, dans le style des menus
-du jeu.
+Adds an **M** button to the game's Options menu. It opens a **MODS** menu with one tile per
+installed mod; clicking a tile opens that mod's settings page, styled like the game's own menus.
 
-ModMenu ne fait rien tout seul : il sert de menu commun aux mods qui s'y enregistrent.
+ModMenu does nothing on its own: it is a shared menu for the mods that register with it.
 
-Mods connus :
+Known mods:
 
-- [AutoLoot](https://github.com/hgrem4ke/Autoloot-slorm) : s'enregistre lui-même.
-- [SlormReforger](https://github.com/wistb/SlormReforger) : détecté automatiquement, avec une page
-  d'explication (ses réglages restent dans sa propre fenêtre).
+- [AutoLoot](https://github.com/hgrem4ke/Autoloot-slorm): registers itself.
+- [SlormReforger](https://github.com/wistb/SlormReforger): detected automatically, with an
+  information page (its settings stay in its own window).
 
 ## Installation
 
-Il faut [Aurie Framework](https://github.com/AurieFramework/Aurie) et
-[YYToolkit](https://github.com/AurieFramework/YYToolkit) **v5.0.0c** déjà installés dans le jeu.
+You need [Aurie Framework](https://github.com/AurieFramework/Aurie) and
+[YYToolkit](https://github.com/AurieFramework/YYToolkit) **v5.0.0c** already installed in the game.
 
-Copie `x64/Release/ModMenu.dll` dans `The Slormancer\mods\Aurie\`.
+Copy `x64/Release/ModMenu.dll` into `The Slormancer\mods\Aurie\`.
 
-Réglage facultatif, dans un fichier `ModMenu.ini` à côté de la DLL :
+Optional setting, in a `ModMenu.ini` file next to the DLL:
 
     [ModMenu]
     Debug=1
 
-`Debug=1` affiche des messages détaillés et active une galerie des sprites d'interface du jeu
-(touche Fin).
+`Debug=1` prints detailed messages and enables a gallery of the game's UI sprites (End key).
 
-## Ajouter son mod au menu
+## Adding your mod to the menu
 
-Copie [api/ModMenu/ModMenuAPI.hpp](api/ModMenu/ModMenuAPI.hpp) dans ton projet, puis enregistre-toi
-depuis ton `ModuleInitialize` :
+Copy [api/ModMenu/ModMenuAPI.hpp](api/ModMenu/ModMenuAPI.hpp) into your project, then register
+from your `ModuleInitialize`:
 
 ```cpp
 #include <ModMenu/ModMenuAPI.hpp>
@@ -41,8 +39,8 @@ static bool IsActive(void*) { return g_Enabled; }
 
 static void DrawPage(ModMenu::IModMenu* Menu, void*)
 {
-    // Grille de 2 colonnes (0 = gauche, 1 = droite) x 3 lignes (0 à 2).
-    if (Menu->Toggle(0, 0, "Mon mod actif", g_Enabled))
+    // Grid of 2 columns (0 = left, 1 = right) x 3 rows (0 to 2).
+    if (Menu->Toggle(0, 0, "My mod enabled", g_Enabled))
         g_Enabled = !g_Enabled;
 }
 
@@ -50,32 +48,32 @@ static void RegisterInModMenu()
 {
     Aurie::AurieInterfaceBase* base = nullptr;
     if (!Aurie::AurieSuccess(Aurie::ObGetInterface(ModMenu::kInterfaceName, base)) || !base)
-        return;                         // ModMenu.dll n'est pas installé : on continue sans menu
+        return;                         // ModMenu.dll is not installed: carry on without a menu
 
     ModMenu::ModEntry entry = {};
-    entry.Name = "MON MOD";             // texte de l'encadré
-    entry.Title = "MOD  -  MON MOD";    // titre de la page
-    entry.IsActive = IsActive;          // affiche ACTIF / INACTIF dans l'encadré (facultatif)
+    entry.Name = "MY MOD";              // tile text
+    entry.Title = "MOD  -  MY MOD";     // page title
+    entry.IsActive = IsActive;          // shows ACTIVE / INACTIVE in the tile (optional)
     entry.DrawPage = DrawPage;
 
     static_cast<ModMenu::IModMenu*>(base)->RegisterMod(entry);
 }
 ```
 
-Éléments disponibles dans une page : `Toggle` (case à cocher) et `Selector` (valeur avec flèches
-gauche et droite). Le menu affiche jusqu'à 6 mods.
+Widgets available in a page: `Toggle` (checkbox) and `Selector` (value with left and right
+arrows). The menu shows up to 6 mods.
 
-ModMenu crée son interface dès `ModulePreinitialize` : Aurie le charge donc avant les mods qui
-s'enregistrent dans leur `ModuleInitialize`.
+ModMenu creates its interface in `ModulePreinitialize`, so Aurie loads it before the mods that
+register in their `ModuleInitialize`.
 
-## Compilation
+## Building
 
-Visual Studio 2022 ou plus récent, avec « Développement Desktop en C++ ». Ouvre `ModMenu.vcxproj`
-et compile en **Release / x64**. Les en-têtes d'Aurie et de YYToolkit v5.0.0c sont dans `include/`.
+Visual Studio 2022 or newer, with "Desktop development with C++". Open `ModMenu.vcxproj` and build
+**Release / x64**. The Aurie and YYToolkit v5.0.0c headers are in `include/`.
 
-## Licence
+## License
 
-AGPL-3.0, voir [LICENSE](LICENSE). Le dossier `include/` contient les en-têtes d'Aurie et de
-YYToolkit (AGPL-3.0, AurieFramework).
+AGPL-3.0, see [LICENSE](LICENSE). The `include/` folder contains the Aurie and YYToolkit headers
+(AGPL-3.0, AurieFramework).
 
-Mod non officiel, sans lien avec les développeurs du jeu.
+Unofficial mod, not affiliated with the game's developers.
