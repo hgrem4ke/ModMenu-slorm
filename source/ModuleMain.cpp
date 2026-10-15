@@ -58,6 +58,7 @@ static char g_IniPath[MAX_PATH] = {};
 #define FR_E_ACUTE    "\xC3\xA9"
 #define FR_E_ACUTE_UP "\xC3\x89"
 #define FR_E_CIRC     "\xC3\xAA"
+#define FR_E_GRAVE    "\xC3\xA8"
 #define FR_I_CIRC     "\xC3\xAE"
 #define FR_A_GRAVE    "\xC3\xA0"
 
@@ -700,26 +701,96 @@ static void ReforgerDrawPage(ModMenu::IModMenu* Menu, void*)
         "Mod de wistb  -  ses r" FR_E_ACUTE "glages se font dans sa propre fen" FR_E_CIRC "tre  -  " FR_E_ACUTE_UP "chap : retour"));
 }
 
+// SkillAlpha sets the strength of skill visuals per kind, from rows it adds to the game's own
+// Settings (Gameplay page). Its values are read from SkillAlpha.ini, next to its DLL, and only
+// shown here: it reads that file once at launch and rewrites it on every change.
+
+static constexpr int kSkillAlphaKinds = 6;
+static const char* kSkillAlphaKeys[kSkillAlphaKinds] = { "Skills", "Ancestral", "Auras", "Seals", "Minions", "Enemies" };
+static int g_SkillAlphaStrength[kSkillAlphaKinds] = { 100, 100, 100, 100, 100, 100 };
+
+static void SkillAlphaReadValues()
+{
+    const std::string path = std::string(g_ModsFolder) + "SkillAlpha.ini";
+    for (int k = 0; k < kSkillAlphaKinds; ++k)
+        g_SkillAlphaStrength[k] = static_cast<int>(GetPrivateProfileIntA("Strength", kSkillAlphaKeys[k], 100, path.c_str()));
+}
+
+static void SkillAlphaDrawPage(ModMenu::IModMenu* Menu, void*)
+{
+    const double left = kPageColumnX[0] - 28.0;
+    const double right = kPageColumnX[1] - 28.0;
+
+    // --- Left column: where it is set ---
+    PageText(left, 138.0, Tr("Skill visuals strength, per kind",
+        "Intensit" FR_E_ACUTE " des effets, par type"), 255, 226, 140);
+    PageText(left, 198.0, Tr("In the game's Options, Gameplay page,",
+        "Dans les Options du jeu, page Gameplay,"), 255, 255, 255);
+    PageText(left, 243.0, Tr("under Map Opacity:",
+        "sous l'opacit" FR_E_ACUTE " de la carte :"), 255, 255, 255);
+    PageText(left, 288.0, "Effect Strength For / Effect Strength", 255, 255, 255);
+    PageText(left, 333.0, Tr("0 to 500%  -  Shift = steps of 50",
+        "0 " FR_A_GRAVE " 500 %  -  Maj = pas de 50"), 200, 200, 200);
+
+    // --- Right column: current values ---
+    static const char* kNamesEn[kSkillAlphaKinds] = {
+        "Skills", "Ancestral Legacy", "Auras & Shields", "Seals", "Minions", "Enemy Effects" };
+    static const char* kNamesFr[kSkillAlphaKinds] = {
+        "Comp" FR_E_ACUTE "tences", "H" FR_E_ACUTE "ritage ancestral", "Auras et boucliers",
+        "Sceaux", "Serviteurs", "Effets ennemis" };
+
+    PageText(right, 138.0, Tr("Current strength", "Intensit" FR_E_ACUTE " actuelle"), 255, 226, 140);
+    for (int k = 0; k < kSkillAlphaKinds; ++k)
+    {
+        char line[96];
+        if (g_Language == ModMenu::kLangFrench)
+            std::snprintf(line, sizeof(line), "%s : %d %%", kNamesFr[k], g_SkillAlphaStrength[k]);
+        else
+            std::snprintf(line, sizeof(line), "%s: %d%%", kNamesEn[k], g_SkillAlphaStrength[k]);
+
+        const bool changed = g_SkillAlphaStrength[k] != 100;
+        PageText(right, 180.0 + k * 33.0, line, changed ? 255 : 200, changed ? 255 : 200, changed ? 255 : 200);
+    }
+
+    Menu->HelpLine(Tr(
+        "Its settings live in the game's Options  -  Esc: back",
+        "Ses r" FR_E_ACUTE "glages sont dans les Options du jeu  -  " FR_E_ACUTE_UP "chap : retour"));
+}
+
 // Adds the external mods loaded in the game to the menu. Called every time the menu opens:
-// those mods may be loaded after us.
+// those mods may be loaded after us, and their settings files may have changed.
 static void DetectExternalMods()
 {
     static bool reforgerAdded = false;
+    static bool skillAlphaAdded = false;
 
-    if (!GetModuleHandleA("SlormReforger.dll"))
-        return;
+    if (GetModuleHandleA("SlormReforger.dll"))
+    {
+        ReforgerReadKey();
 
-    ReforgerReadKey();
+        if (!reforgerAdded)
+        {
+            ModMenu::ModEntry entry = {};
+            entry.Name = "SLORMREFORGER";
+            entry.Title = "MOD  -  SLORMREFORGER";
+            entry.DrawPage = ReforgerDrawPage;
+            reforgerAdded = g_Interface.RegisterMod(entry);
+        }
+    }
 
-    if (reforgerAdded)
-        return;
+    if (GetModuleHandleA("SkillAlpha.dll"))
+    {
+        SkillAlphaReadValues();
 
-    ModMenu::ModEntry entry = {};
-    entry.Name = "SLORMREFORGER";
-    entry.Title = "MOD  -  SLORMREFORGER";
-    entry.DrawPage = ReforgerDrawPage;
-
-    reforgerAdded = g_Interface.RegisterMod(entry);
+        if (!skillAlphaAdded)
+        {
+            ModMenu::ModEntry entry = {};
+            entry.Name = "SKILLALPHA";
+            entry.Title = "MOD  -  SKILLALPHA";
+            entry.DrawPage = SkillAlphaDrawPage;
+            skillAlphaAdded = g_Interface.RegisterMod(entry);
+        }
+    }
 }
 
 // ============================================================
