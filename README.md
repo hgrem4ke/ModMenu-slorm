@@ -15,7 +15,7 @@ Known mods:
 - [AutoLoot](https://github.com/hgrem4ke/Autoloot-slorm): registers itself.
 - [SlormReforger](https://github.com/wistb/SlormReforger): detected automatically, with an
   information page (its settings stay in its own window).
-- SkillAlpha: detected automatically, with a page showing where to set it (the game's Options,
+- SkillAlpha (by surficialruby): detected automatically, with a page showing where to set it (the game's Options,
   Gameplay page) and its current strength per kind, read from `SkillAlpha.ini`.
 
 ## Installation

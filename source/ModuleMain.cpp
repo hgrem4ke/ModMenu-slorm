@@ -753,8 +753,8 @@ static void SkillAlphaDrawPage(ModMenu::IModMenu* Menu, void*)
     }
 
     Menu->HelpLine(Tr(
-        "Its settings live in the game's Options  -  Esc: back",
-        "Ses r" FR_E_ACUTE "glages sont dans les Options du jeu  -  " FR_E_ACUTE_UP "chap : retour"));
+        "Mod by surficialruby  -  its settings live in the game's Options  -  Esc: back",
+        "Mod de surficialruby  -  ses r" FR_E_ACUTE "glages sont dans les Options du jeu  -  " FR_E_ACUTE_UP "chap : retour"));
 }
 
 // Adds the external mods loaded in the game to the menu. Called every time the menu opens:
